@@ -134,8 +134,8 @@ download_sfdocs_build_config() {
 
   for item in "${files_to_download[@]}"
   do
-    file_name=$(echo "${item}"|awk -F ":" '{print $1}')
-    file_url=$(echo "${item}"|awk -F ":" '{print $2,$3}')
+    file_name=$(echo "${item}"|awk -F ":" '{print $1}'| xargs)
+    file_url=$(echo "${item}"|awk -F ":" '{print $2,$3}' | xargs)
     make_a_curl_call "${file_url}" "${file_name}"
   done
 }
