@@ -110,7 +110,7 @@ download_config_file(){
 get_file_url() {
   local url=$1
   if [[ "${SFDOCS_RELEASE_TAG}" == "prod" ]]; then
-    echo "$url"
+    echo "$url?ref=test"
   elif [[ "${SFDOCS_RELEASE_TAG}" == "dev" ]]; then
     echo "$url?ref=dev"
   fi
