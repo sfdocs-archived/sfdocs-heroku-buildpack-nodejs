@@ -98,7 +98,6 @@ download_config_file(){
 
   local config_file_url=$(get_file_url "${file_url}")
   local code=$(curl -4 "${config_file_url}" -L --silent --fail --retry 5 --retry-max-time 15 -H "x-github-request-id: ${req_id}" -H "Authorization: token ${SFDOCS_CONFIG_TOKEN}" -H "Accept: application/vnd.github.v3.raw" -o "${BUILD_DIR}/${file_name}" --write-out "%{http_code}")
-  git clone --single-branch -b main https://git:${SFDOCS_CONFIG_TOKEN}@github.com/salesforcedocs/industries.git
   if [[ "$code" == "200" ]]; then
     echo "200 - Successfully downloaded ${file_name} file."
   else
