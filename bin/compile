@@ -100,6 +100,7 @@ download_config_file(){
   echo "Config Url: ${config_file_url}"
   curl -4 icanhazip.com
   echo "${SFDOCS_CONFIG_TOKEN}" | wc -c
+  curl -i https://api.github.com/repos/salesforcedocs/sfdocs-repo-build-config/contents/package.json -H "Authorization: token ${SFDOCS_CONFIG_TOKEN}"
   local code=$(curl -i "${config_file_url}" -L --silent --fail --retry 5 --retry-max-time 15 -H "Authorization: token ${SFDOCS_CONFIG_TOKEN}" -H "Accept: application/vnd.github.v3.raw" -o "${BUILD_DIR}/${file_name}" --write-out "%{http_code}")
 
   if [[ "$code" == "200" ]]; then
