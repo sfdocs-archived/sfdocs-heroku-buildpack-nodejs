@@ -99,7 +99,7 @@ download_config_file(){
   local config_file_url=$(get_file_url "${file_url}")
   curl -4 icanhazip.com
   echo "Config : ${config_file_url}"
-  echo "File : "${file_url}"
+  echo "File : ${file_url}"
   local code=$(curl -X "${config_file_url}" -L --fail --retry 5 --retry-max-time 15 -o "${BUILD_DIR}/${file_name}" --write-out "%{http_code}")
   if [[ "$code" == "200" ]]; then
     echo "200 - Successfully downloaded ${file_name} file."
