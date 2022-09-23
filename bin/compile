@@ -119,10 +119,9 @@ get_file_url() {
 # Downloading config files (package.json, yarn.lock) from sfdocs-repo-build-config repo
 download_sfdocs_build_config() {
   export_env_dir "$ENV_DIR"
-  local test="https://gist.githubusercontent.com/debabrata-shome/1d78fb18a1425e3b901adaf3ddd5b004/raw/6a62e8ee11c66163de6f1d7aebbd9e5ae8285c55/gistfile1.txt"
-  local package_json_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/package.json"
-  local yarn_lock_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/yarn.lock"
-  local puge_cache_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/purge.sh"
+  local package_json_file_url="https://gist.githubusercontent.com/debabrata-shome/2e179f6a97ea8641da49f785eda89eaf/raw/8066b69c432632c072ae8f38f198f462520abae2/package.json"
+  local yarn_lock_file_url="https://gist.githubusercontent.com/debabrata-shome/1f9b906f2373e008a81199759085f607/raw/85207d85af910ffc42ca7aa663ed0e1555ad2a5d/yarn.lock"
+  local puge_cache_file_url="https://gist.githubusercontent.com/debabrata-shome/e6bb3f45468f2dfbc4dd467669b0d1d1/raw/fee0823c05b0265d8a7cee84c63ff6dccc87c339/purge.sh"
 
   if [[ -z "${SFDOCS_RELEASE_TAG}" ]]; then
     return
