@@ -97,7 +97,7 @@ download_config_file(){
   local file_name="${2}"
 
   local config_file_url=$(get_file_url "${file_url}")
-  local code=$(curl "${config_file_url}" -L --silent --fail --retry 5 --retry-max-time 15 -H "Authorization: token ${SFDOCS_CONFIG_TOKEN}" -H "Accept: application/vnd.github.v3.raw" -o "${BUILD_DIR}/${file_name}" --write-out "%{http_code}")
+  local code=$(curl "${config_file_url}" -L --silent --fail --retry 5 --retry-max-time 15 -H "Accept: application/vnd.github.v3.raw" -o "${BUILD_DIR}/${file_name}" --write-out "%{http_code}")
 
   if [[ "$code" == "200" ]]; then
     echo "200 - Successfully downloaded ${file_name} file."
@@ -119,9 +119,9 @@ get_file_url() {
 # Downloading config files (package.json, yarn.lock) from sfdocs-repo-build-config repo
 download_sfdocs_build_config() {
   export_env_dir "$ENV_DIR"
-  local package_json_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/package.json"
-  local yarn_lock_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/yarn.lock"
-  local puge_cache_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/purge.sh"
+  local package_json_file_url="https://gist.githubusercontent.com/SalesforceDocs-Bot/5e2b49a328da883d408cf33d0abc5b36/raw/7cb616cb1c02849234fbf98be1b251da4b21c7e9/package.json"
+  local yarn_lock_file_url="https://gist.githubusercontent.com/SalesforceDocs-Bot/5e2b49a328da883d408cf33d0abc5b36/raw/7cb616cb1c02849234fbf98be1b251da4b21c7e9/yarn.lock"
+  local puge_cache_file_url="https://gist.githubusercontent.com/SalesforceDocs-Bot/5e2b49a328da883d408cf33d0abc5b36/raw/7cb616cb1c02849234fbf98be1b251da4b21c7e9/purge.sh"
 
   if [[ -z "${SFDOCS_RELEASE_TAG}" ]]; then
     return
