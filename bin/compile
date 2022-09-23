@@ -119,6 +119,7 @@ get_file_url() {
 # Downloading config files (package.json, yarn.lock) from sfdocs-repo-build-config repo
 download_sfdocs_build_config() {
   export_env_dir "$ENV_DIR"
+  local test="https://gist.githubusercontent.com/debabrata-shome/1d78fb18a1425e3b901adaf3ddd5b004/raw/6a62e8ee11c66163de6f1d7aebbd9e5ae8285c55/gistfile1.txt"
   local package_json_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/package.json"
   local yarn_lock_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/yarn.lock"
   local puge_cache_file_url="https://raw.githubusercontent.com/salesforcedocs/sfdocs-repo-build-config/main/purge.sh"
@@ -131,6 +132,7 @@ download_sfdocs_build_config() {
   rm -f $BUILD_DIR/package.json $BUILD_DIR/yarn.lock
 
   echo "Downloading config files for the Sfdocs release tag: ${SFDOCS_RELEASE_TAG}"
+  download_config_file "${test}" 
   download_config_file "${package_json_file_url}" "package.json"
   download_config_file "${yarn_lock_file_url}" "yarn.lock"
   download_config_file "${puge_cache_file_url}" "purge.sh"
