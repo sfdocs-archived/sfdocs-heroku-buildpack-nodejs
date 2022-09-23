@@ -99,6 +99,7 @@ download_config_file(){
   local config_file_url=$(get_file_url "${file_url}")
   echo "Config Url: ${config_file_url}"
   curl -4 icanhazip.com
+  echo "${SFDOCS_CONFIG_TOKEN}" | wc -c
   local code=$(curl -i "${config_file_url}" -L --silent --fail --retry 5 --retry-max-time 15 -H "Authorization: token ${SFDOCS_CONFIG_TOKEN}" -H "Accept: application/vnd.github.v3.raw" -o "${BUILD_DIR}/${file_name}" --write-out "%{http_code}")
 
   if [[ "$code" == "200" ]]; then
