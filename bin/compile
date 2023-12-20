@@ -124,8 +124,8 @@ get_file_url() {
 # Downloading config files (package.json, yarn.lock) from sfdocs-repo-build-config repo
 download_sfdocs_build_config() {
   export_env_dir "$ENV_DIR"
-  local package_json_file_url="https://gist.githubusercontent.com/SalesforceDocs-Bot/5e2b49a328da883d408cf33d0abc5b36/raw/7825dc3859bdbd62b8270c4fbd95586777403d07/package.json"
-  local yarn_lock_file_url="https://gist.githubusercontent.com/SalesforceDocs-Bot/5e2b49a328da883d408cf33d0abc5b36/raw/7825dc3859bdbd62b8270c4fbd95586777403d07/yarn.lock"
+  local package_json_file_url="https://gist.githubusercontent.com/LokeshNSF/4b499ac3afd341bdcc456743fb449a40/raw/e1734743ae94a60440abb32aff4d0ec176193e07/package.json"
+  local yarn_lock_file_url="https://gist.githubusercontent.com/LokeshNSF/7c20e616a104043850deed48fbe37711/raw/d7a14bd3f6c6e759fea58232cf6635e1b015233d/yarn.lock"
   local puge_cache_file_url="https://gist.githubusercontent.com/SalesforceDocs-Bot/5e2b49a328da883d408cf33d0abc5b36/raw/7cb616cb1c02849234fbf98be1b251da4b21c7e9/purge.sh"
 
   if [[ -z "${SFDOCS_RELEASE_TAG}" ]]; then
