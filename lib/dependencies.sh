@@ -137,7 +137,7 @@ yarn_node_modules() {
 
   echo "Installing node modules (yarn.lock)"
   cd "$build_dir" || return
-  monitor "yarn-install" yarn install --production="$production" --frozen-lockfile --ignore-engines 2>&1
+  monitor "yarn-install" yarn install --production="$production" --frozen-lockfile --ignore-engines --prefer-offline 2>&1
 }
 
 yarn_2_install() {
@@ -146,18 +146,13 @@ yarn_2_install() {
   echo "Running 'yarn install' with yarn.lock"
   cd "$build_dir" || return
 
-  # If there is no cache we can't run immutable cache because a cache will be created by default
-  if ! has_yarn_cache "$build_dir"; then
-    monitor "yarn-2-install" yarn install --immutable 2>&1
-  else
-    monitor "yarn-2-install" yarn install --immutable --immutable-cache 2>&1
-  fi
+  monitor "yarn-2-install" yarn install --immutable 2>&1
 }
 
 yarn_prune_devdependencies() {
   local build_dir=${1:-}
   local cache_dir=${2:-}
-  local workspace_plugin_path
+  local buildpack_dir=${3:-}
 
   if [ "$NODE_ENV" == "test" ]; then
     echo "Skipping because NODE_ENV is 'test'"
@@ -172,21 +167,16 @@ yarn_prune_devdependencies() {
     meta_set "skipped-prune" "true"
     return 0
   elif $YARN_2; then
-    cd "$build_dir" || return
-
-    if has_yarn_workspace_plugin_installed "$build_dir"; then
-      echo "Running 'yarn workspaces focus --all --production'"
-      meta_set "workspace-plugin-present" "true"
-
-      # The cache is removed beforehand because the command is running an install on devDeps, and
-      # it will not remove the existing dependencies beforehand.
-      rm -rf "$cache_dir"
-      monitor "yarn-prune" yarn workspaces focus --all --production
-      meta_set "skipped-prune" "false"
-    else
-      meta_set "workspace-plugin-present" "false"
-      echo "Skipping because the Yarn workspace plugin is not present. Add the plugin to your source code with 'yarn plugin import workspace-tools'."
+    if [ "$YARN2_SKIP_PRUNING" == "true" ]; then
+      echo "Skipping because YARN2_SKIP_PRUNING is '$YARN2_SKIP_PRUNING'"
+      meta_set "skipped-prune" "true"
+      return 0
     fi
+    cd "$build_dir" || return
+    echo "Running 'yarn heroku prune'"
+    export YARN_PLUGINS="${buildpack_dir}/yarn2-plugins/prune-dev-dependencies/bundles/@yarnpkg/plugin-prune-dev-dependencies.js"
+    monitor "yarn-prune" yarn heroku prune
+    meta_set "skipped-prune" "false"
   else
     cd "$build_dir" || return
     monitor "yarn-prune" yarn install --frozen-lockfile --ignore-engines --ignore-scripts --prefer-offline 2>&1
@@ -194,19 +184,27 @@ yarn_prune_devdependencies() {
   fi
 }
 
+has_npm_lock() {
+  local build_dir=${1:-}
+
+  if [[ -f "$build_dir/package-lock.json" ]] || [[ -f "$build_dir/npm-shrinkwrap.json" ]]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
 should_use_npm_ci() {
   local build_dir=${1:-}
   local npm_version
+  local major
 
   npm_version=$(npm --version)
-  # major_string will be ex: "4." "5." "10"
-  local major_string=${npm_version:0:2}
-  # strip any "."s from major_string
-  local major=${major_string//.}
+  major=$(npm_version_major)
 
   # We should only run `npm ci` if all of the manifest files are there, and we are running at least npm 6.x
   # `npm ci` was introduced in the 5.x line in 5.7.0, but this sees very little usage, < 5% of builds
-  if [[ -f "$build_dir/package.json" ]] && [[ -f "$build_dir/package-lock.json" ]] && (( major >= 6 )); then
+  if [[ -f "$build_dir/package.json" ]] && [[ "$(has_npm_lock "$build_dir")" == "true" ]] && (( major >= 6 )); then
     echo "true"
   else
     echo "false"
@@ -220,7 +218,7 @@ npm_node_modules() {
   if [ -e "$build_dir/package.json" ]; then
     cd "$build_dir" || return
 
-    if [[ "$(should_use_npm_ci "$build_dir")" == "true" ]] && [[ "$USE_NPM_INSTALL" != "true" ]]; then
+    if [[ "$USE_NPM_INSTALL" == "false" ]]; then
       meta_set "use-npm-ci" "true"
       echo "Installing node modules"
       monitor "npm-install" npm ci --production="$production" --unsafe-perm --userconfig "$build_dir/.npmrc" 2>&1

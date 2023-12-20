@@ -144,7 +144,7 @@ fail_multiple_lockfiles() {
 
          $ git rm yarn.lock
 
-       - To use yarn to install your application's dependences please delete
+       - To use yarn to install your application's dependencies please delete
          the package-lock.json file.
 
          $ git rm package-lock.json
@@ -235,7 +235,7 @@ fail_bin_install() {
   set +e
 
   # re-request the result, saving off the reason for the failure this time
-  error=$($RESOLVE "$bin" "$version")
+  error=$($RESOLVE "$BP_DIR/inventory/$bin.toml" "$version" 2>&1)
 
   # re-enable trapping
   set -e
@@ -350,6 +350,33 @@ fail_invalid_semver() {
 
 # Yarn 2 failures
 
+fail_using_yarn2_with_yarn_production_environment_variable_set() {
+  local yarn_engine
+  local skip_pruning
+  local log_file="$1"
+
+  if grep -qi 'Unrecognized or legacy configuration settings found: production' "$log_file"; then
+    yarn_engine=$(yarn --version)
+    if [[ "$YARN_PRODUCTION" == "true" ]]; then
+      skip_pruning=false
+    else
+      skip_pruning=true
+    fi
+
+    mcount "failures.yarn2-with-yarn-production-env-set"
+    meta_set "failure" "yarn2-with-yarn-production-env-set"
+    echo ""
+    warn "Legacy Yarn 1.x configuration present:
+
+       Your application uses Yarn v$yarn_engine which does not support the YARN_PRODUCTION environment variable. Please
+       update your heroku config vars to remove YARN_PRODUCTION and set YARN2_SKIP_PRUNING instead.
+
+         $ heroku config:unset YARN_PRODUCTION && heroku config:set YARN2_SKIP_PRUNING=$skip_pruning
+    " https://devcenter.heroku.com/articles/nodejs-support#skip-pruning
+    fail
+  fi
+}
+
 fail_missing_yarnrc_yml() {
   local build_dir="$1"
 
@@ -428,6 +455,20 @@ fail_missing_yarn_vendor() {
 
 log_other_failures() {
   local log_file="$1"
+
+  if grep -qP "version \`GLIBC_\d+\.\d+' not found" "$log_file"; then
+    mcount "failures.libc6-incompatibility"
+    meta_set "failure" "libc6-incompatibility"
+    warn "This Node.js version is not compatible with the current stack.
+
+       For Node.js versions 18 and greater, heroku-20 or newer is required.
+       Consider updating to a stack that is compatible with the Node.js version
+       or pinning the Node.js version to be compatible with the current
+       stack." https://help.heroku.com/R7DTSTD0
+
+    return 0
+  fi
+
   if grep -qi "sh: 1: .*: not found" "$log_file"; then
     mcount "failures.dev-dependency-tool-not-installed"
     meta_set "failure" "dev-dependency-tool-not-installed"
@@ -712,9 +753,8 @@ warn_old_npm() {
 
   npm_version="$(npm --version)"
 
-  if [ "${npm_version:0:1}" -lt "2" ]; then
-    latest_npm="$(curl --silent --get --retry 5 --retry-max-time 15 https://semver.herokuapp.com/npm/stable)"
-    warning "This version of npm ($npm_version) has several known issues - consider upgrading to the latest release ($latest_npm)" "https://devcenter.heroku.com/articles/nodejs-support#specifying-an-npm-version"
+  if [ "$(npm_version_major)" -lt "2" ]; then
+    warning "This version of npm ($npm_version) has several known issues. Please update your npm version in package.json." "https://devcenter.heroku.com/articles/nodejs-support#specifying-an-npm-version"
     mcount 'warnings.npm.old'
   fi
 }
@@ -725,7 +765,7 @@ warn_old_npm_lockfile() {
 
   npm_version="$(npm --version)"
 
-  if $npm_lock && [ "${npm_version:0:1}" -lt "5" ]; then
+  if $npm_lock && [ "$(npm_version_major)" -lt "5" ]; then
     warn "This version of npm ($npm_version) does not support package-lock.json. Please
        update your npm version in package.json." "https://devcenter.heroku.com/articles/nodejs-support#specifying-an-npm-version"
     mcount 'warnings.npm.old-and-lockfile'

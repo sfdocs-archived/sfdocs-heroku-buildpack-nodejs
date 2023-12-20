@@ -7,6 +7,8 @@ set -o errexit    # always exit on error
 set -o pipefail   # don't ignore exit codes when piping output
 unset GIT_DIR     # Avoid GIT_DIR leak from previous build steps
 
+[ "$BUILDPACK_XTRACE" ] && set -o xtrace
+
 ### Constants
 
 # This is used by the buildpack stdlib for metrics
@@ -30,6 +32,8 @@ source "$BP_DIR/lib/output.sh"
 source "$BP_DIR/lib/monitor.sh"
 # shellcheck source=lib/environment.sh
 source "$BP_DIR/lib/environment.sh"
+# shellcheck source=lib/npm.sh
+source "$BP_DIR/lib/npm.sh"
 # shellcheck source=lib/failure.sh
 source "$BP_DIR/lib/failure.sh"
 # shellcheck source=lib/binaries.sh
@@ -67,6 +71,7 @@ build_start_time=$(nowms)
 handle_failure() {
   meta_set "node-build-success" "false"
   header "Build failed"
+  fail_using_yarn2_with_yarn_production_environment_variable_set "$LOG_FILE"
   fail_yarn_outdated "$LOG_FILE"
   fail_yarn_lockfile_outdated "$LOG_FILE"
   fail_node_install "$LOG_FILE" "$BUILD_DIR"
@@ -184,20 +189,11 @@ create_env # can't pipe the whole thing because piping causes subshells, prevent
 list_node_config | output "$LOG_FILE"
 create_build_env
 
-### Configure package manager cache directories
-[ ! "$YARN_CACHE_FOLDER" ] && YARN_CACHE_FOLDER=$(mktemp -d -t yarncache.XXXXX)
-[ ! "$NPM_CONFIG_CACHE" ] && NPM_CONFIG_CACHE=$(mktemp -d -t npmcache.XXXXX)
-export YARN_CACHE_FOLDER NPM_CONFIG_CACHE
 
 ### Configure vendored package manager
 export VENDOR_PATH
 
 if [[ "$YARN_2" == "true" ]]; then
-  if [[ "$NODE_MODULES_CACHE" == "true" ]]  && ! node_modules_enabled "$BUILD_DIR"; then
-    warn "
-    The buildpack won't cache the dependencies in .yarn/cache. Since you're using Yarn 2 and Plug'n'Play, you will need to customize your cache or unset NODE_MODULES_CACHE." "https://devcenter.heroku.com/articles/migrating-to-yarn-2#disable-dependency-caching"
-  fi
-
   if [[ -f "$BUILD_DIR/.npmrc" ]]; then
     warn "There is an existing .npmrc file that will not be used. All configurations are read from the .yarnrc.yml file." "https://devcenter.heroku.com/articles/migrating-to-yarn-2"
   fi
@@ -206,8 +202,26 @@ if [[ "$YARN_2" == "true" ]]; then
     warn "There is an existing .yarnrc file that will not be used. All configurations are read from the .yarnrc.yml file." "https://devcenter.heroku.com/articles/migrating-to-yarn-2"
   fi
 
+  # When in Plug'n'Play mode the yarn cache will include dependencies needed at
+  # runtime; the cache must live in /app (not /tmp) so that dependencies are
+  # persisted. When using zero-install, /app/.yarn/cache will include all
+  # dependencies which yarn should reuse.
+  if use_yarn_app_cache "$BUILD_DIR"; then
+    YARN_CACHE_FOLDER=${YARN_CACHE_FOLDER:-"$BUILD_DIR/.yarn/cache"}
+  fi
+
+  # When in zero-install mode, use --immutable-cache to verify that the cache
+  # is pristine. Cache mutation is expected in nonzero installs.
   if has_yarn_cache "$BUILD_DIR"; then
-    YARN_CACHE_FOLDER="$BUILD_DIR/.yarn/cache"
+    YARN_ENABLE_IMMUTABLE_CACHE=${YARN_ENABLE_IMMUTABLE_CACHE:-true}
+  fi
+
+  meta_set "yarn2-immutable-cache" ${YARN_ENABLE_IMMUTABLE_CACHE:-false}
+
+  if node_modules_enabled "$BUILD_DIR"; then
+    meta_set "yarn2-pnp-linker" "false"
+  else
+    meta_set "yarn2-pnp-linker" "true"
   fi
 
   ### Configure Yarn 2
@@ -224,11 +238,10 @@ if [[ "$YARN_2" == "true" ]]; then
   fail_missing_yarn_vendor "$BUILD_DIR" "$VENDOR_PATH"
 fi
 
-[[ $(features_get "cache-native-yarn-cache") == "false" ]] && USE_YARN_CACHE=false
-
-if [[ -z "$USE_NPM_INSTALL" ]] && [[ $(features_get_with_blank "use-npm-ci") == "false" ]]; then
-  USE_NPM_INSTALL=true
-fi
+### Configure package manager cache directories
+[ ! "$YARN_CACHE_FOLDER" ] && YARN_CACHE_FOLDER=$(mktemp -d -t yarncache.XXXXX)
+[ ! "$NPM_CONFIG_CACHE" ] && NPM_CONFIG_CACHE=$(mktemp -d -t npmcache.XXXXX)
+export YARN_CACHE_FOLDER NPM_CONFIG_CACHE
 
 install_bins() {
   local node_engine npm_engine yarn_engine npm_version node_version
@@ -236,11 +249,6 @@ install_bins() {
   node_engine=$(read_json "$BUILD_DIR/package.json" ".engines.node")
   npm_engine=$(read_json "$BUILD_DIR/package.json" ".engines.npm")
   yarn_engine=$(read_json "$BUILD_DIR/package.json" ".engines.yarn")
-
-  if [[ "$YARN_2" == "true" && -n "$yarn_engine" ]]; then
-    warn "You don't need to specify Yarn engine. Heroku will install the latest Yarn 1.x, so that per project version can be used. More information here: https://yarnpkg.com/getting-started/install#global-install"
-    unset yarn_engine
-  fi
 
   meta_set "node-version-request" "$node_engine"
   meta_set "npm-version-request" "$npm_engine"
@@ -291,6 +299,14 @@ install_bins() {
 header "Installing binaries" | output "$LOG_FILE"
 install_bins | output "$LOG_FILE"
 
+if [[ -z "$USE_NPM_INSTALL" ]]; then
+  if [[ "$(should_use_npm_ci "$BUILD_DIR")" == "true" ]]; then
+    USE_NPM_INSTALL=false
+  else
+    USE_NPM_INSTALL=true
+  fi
+fi
+
 restore_cache() {
   local cache_status cache_directories restore_cache_start_time
   restore_cache_start_time=$(nowms)
@@ -313,7 +329,7 @@ restore_cache() {
   elif [[ "$cache_status" == "valid" ]]; then
     header "Restoring cache"
     if [[ "$cache_directories" == "" ]]; then
-      restore_default_cache_directories "$BUILD_DIR" "$CACHE_DIR" "$YARN_CACHE_FOLDER"
+      restore_default_cache_directories "$BUILD_DIR" "$CACHE_DIR" "$YARN_CACHE_FOLDER" "$NPM_CONFIG_CACHE"
     else
       restore_custom_cache_directories "$BUILD_DIR" "$CACHE_DIR" "$cache_directories"
     fi
@@ -384,7 +400,7 @@ cache_build() {
     :
   elif [[ "$cache_directories" == "" ]]; then
     header "Caching build"
-    save_default_cache_directories "$BUILD_DIR" "$CACHE_DIR" "$YARN_CACHE_FOLDER"
+    save_default_cache_directories "$BUILD_DIR" "$CACHE_DIR" "$YARN_CACHE_FOLDER" "$NPM_CONFIG_CACHE"
   else
     header "Caching build"
     save_custom_cache_directories "$BUILD_DIR" "$CACHE_DIR" "$cache_directories"
@@ -395,7 +411,7 @@ cache_build() {
 
 prune_devdependencies() {
   if $YARN || $YARN_2; then
-    yarn_prune_devdependencies "$BUILD_DIR" "$YARN_CACHE_FOLDER"
+    yarn_prune_devdependencies "$BUILD_DIR" "$YARN_CACHE_FOLDER" "$BP_DIR"
   else
     npm_prune_devdependencies "$BUILD_DIR"
   fi
